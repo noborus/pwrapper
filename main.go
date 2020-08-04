@@ -46,6 +46,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&pwrapper.Start, "start", "", "The first string to pipe to the command")
 	rootCmd.PersistentFlags().StringVar(&pwrapper.End, "end", "", "The last string to pipe to the command")
 	rootCmd.PersistentFlags().StringSliceVar(&pwrapper.ExecCommand, "exec", []string{}, "Command that receives standard input")
+	rootCmd.PersistentFlags().BoolVar(&pwrapper.Debug, "debug", false, "enable debug print")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")

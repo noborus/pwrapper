@@ -16,6 +16,7 @@ type PWrapper struct {
 	Start       string
 	End         string
 	ExecCommand []string
+	Debug       bool
 }
 
 type wCommand struct {
@@ -27,6 +28,8 @@ type wCommand struct {
 	stdoutChan chan string
 	stderr     io.ReadCloser
 }
+
+var Debug bool
 
 func Open(command string, start string, end string) (*wCommand, error) {
 	commands, err := shellquote.Split(command)
@@ -71,6 +74,7 @@ func Open(command string, start string, end string) (*wCommand, error) {
 		return nil, err
 	}
 
+	debugPrintf("(pipe in start)%s\n", w.start)
 	if err = w.Write(w.start); err != nil {
 		return nil, err
 	}
@@ -78,6 +82,7 @@ func Open(command string, start string, end string) (*wCommand, error) {
 }
 
 func (w *wCommand) Close() error {
+	debugPrintf("(pipe in end)%s\n", w.end)
 	if err := w.Write(w.end); err != nil {
 		return err
 	}
@@ -102,6 +107,7 @@ func (w *wCommand) Write(str string) error {
 }
 
 func Command(p PWrapper) error {
+	Debug = p.Debug
 	w, err := Open(p.WrapCommand, p.Start, p.End)
 	if err != nil {
 		return err
@@ -114,6 +120,12 @@ func Command(p PWrapper) error {
 		}
 	}()
 
+	go func() {
+		for stdout := range w.stdoutChan {
+			fmt.Println(stdout)
+		}
+	}()
+
 	for _, cmd := range p.ExecCommand {
 		stdout := <-w.stdoutChan
 		command := strings.Replace(cmd, "$args", stdout, 1)
@@ -121,6 +133,7 @@ func Command(p PWrapper) error {
 		if err != nil {
 			return err
 		}
+		debugPrintf("(exec)%v\n", command)
 		out, err := exec.Command(commands[0], commands[1:]...).Output()
 		if err != nil {
 			return fmt.Errorf("exec.Command: %v:%w", commands, err)
@@ -129,20 +142,22 @@ func Command(p PWrapper) error {
 		for _, r := range strings.Split(str, "\n") {
 			if strings.HasPrefix(r, "PWRAPPER:") {
 				r = strings.Replace(r, "PWRAPPER:", "", 1)
+				debugPrintf("(pipe in) %s\n", r)
 				if err := w.Write(r); err != nil {
 					return err
 				}
-				fmt.Printf("(pipe) %s\n", r)
 			} else {
-				fmt.Printf("(stdout) %s\n", r)
+				fmt.Println(r)
 			}
 		}
 	}
 
-	go func() {
-		for stdout := range w.stdoutChan {
-			fmt.Printf("(end) %s\n", stdout)
-		}
-	}()
 	return w.Close()
+}
+
+func debugPrintf(format string, args ...interface{}) {
+	if !Debug {
+		return
+	}
+	fmt.Printf(format, args...)
 }
